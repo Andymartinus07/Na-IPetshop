@@ -151,8 +151,9 @@ exports.getCheckout = async (req, res, next) => {
   try {
     let products;
     let total = 0;
-    const cartData = req.user.populateCart();
-    products = cartData.items;
+    const userData = await req.user.populate("cart.items.productId");
+    products = userData.cart.items;
+
     total = 0;
     products.forEach((p) => {
       total += p.quantity * p.productId.price;
@@ -160,13 +161,18 @@ exports.getCheckout = async (req, res, next) => {
 
     const stripeSession = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
+      mode: "payment",
       line_items: products.map((p) => {
         return {
-          name: p.productId.title,
-          description: p.productId.description,
-          amount: p.productId.price * 100,
-          currency: "usd",
           quantity: p.quantity,
+          price_data: {
+            currency: "usd",
+            unit_amount: p.productId.price * 100,
+            product_data: {
+              name: p.productId.title,
+              description: p.productId.description,
+            },
+          },
         };
       }),
       success_url: req.protocol + "://" + req.get("host") + "/checkout/success",
