@@ -2,7 +2,7 @@ const Product = require("../models/product");
 const { validationResult } = require("express-validator");
 const fileHelper = require("../util/file");
 const path = require("path");
-const { cloudinary } = require("../util/cloudinary");
+const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
 
 exports.getAddProduct = (req, res, next) => {
@@ -22,6 +22,8 @@ exports.getAddProduct = (req, res, next) => {
 exports.postAddProduct = async (req, res, next) => {
   const { title, price, description } = req.body;
   const image = req.file;
+
+  let imageURL;
 
   //check for image uploaded or not
   if (!image) {
@@ -67,7 +69,6 @@ exports.postAddProduct = async (req, res, next) => {
           reject(error);
         }
       });
-
       streamifier.createReadStream(req.file.buffer).pipe(stream);
     });
   };
@@ -77,31 +78,35 @@ exports.postAddProduct = async (req, res, next) => {
     return result;
   }
 
-  const uploadedImage = await upload(req);
-  const imageURL = uploadedImage.secure_url;
-  const publicId = uploadedImage.public_id;
+  try {
+    const uploadedImage = await upload(req);
+    imageURL = uploadedImage.secure_url;
+    const publicId = uploadedImage.public_id;
 
-  const product = new Product({
-    title: title,
-    price: price,
-    description: description,
-    imageUrl: imageURL,
-    publicId: publicId,
-    userId: req.user,
-  });
-
-  product
-    .save()
-    .then((result) => {
-      console.log("Created Product");
-      res.redirect("/admin/products");
-    })
-    .catch((err) => {
-      // res.redirect("/500");
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      return next(error);
+    const product = new Product({
+      title: title,
+      price: price,
+      description: description,
+      imageUrl: imageURL,
+      publicId: publicId,
+      userId: req.user,
     });
+
+    product
+      .save()
+      .then((result) => {
+        console.log("Created Product");
+        res.redirect("/admin/products");
+      })
+      .catch((err) => {
+        // res.redirect("/500");
+        const error = new Error(err);
+        error.httpStatusCode = 500;
+        return next(error);
+      });
+  } catch (err) {
+    console.error(err, "Error post products");
+  }
 };
 
 exports.getEditProduct = (req, res, next) => {
